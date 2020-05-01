@@ -1,0 +1,290 @@
+---
+title: "Video shiny"
+author: "F J Alonso"
+date: "30/4/2020"
+output: html_notebook
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+Un fichero base para la aplicación es
+
+
+```{r  shiny app, include=TRUE}
+library(shiny)
+
+ui<-fluidPage()
+
+server<-function(input,output){}
+
+shinyApp(ui=ui,server = server)
+```
+
+Los tipos de letras son
+
+```{r  shiny app2, include=TRUE}
+library(shiny)
+
+ui<-fluidPage(
+   h1("Primary header"),
+   h2("Secundary header"),
+   strong("bold_type"),
+   em("italic"),
+   )
+
+server<-function(input,output){}
+
+shinyApp(ui=ui,server = server)
+```
+
+
+
+
+Los elementos de entrada y salida se ponen en el `ui <- fluidPage` como  funciones `Input() y Output()`
+
+Ejemplo de una función entrada
+
+```
+sliderInput(InputId = "num", 
+    label="Elige un número",
+    value=25, min=1, max=100
+    )
+```
+
+Las salidas pueden ser las siguientes funciones
+
+``` 
+dataTableOutput()
+htmlOutput()
+imageOutput()
+plotOutput()
+tableOutput()
+textOutput()
+uiOutput()
+verbatimTextOutput()
+```
+
+Por ejemplo `plotOutput("hist")'
+
+
+Para decirle a la app cómo conjuntar los input y outputs se usa la función. 
+
+1. Almacenar las salidas en `output$#### <- ` donde `####` es la etiqueta de salida (p.e. hist anterior).
+
+1. Construir los elementos con la función `render***()`, esta función actualiza con las distintas elecciones que hagamos. Por ejemplo `renderPlot({})`.
+
+1. Usar entradas como `input$###`. Por ejemplo antes input$num.
+
+
+Las opciones posibles de render son:
+
+``` 
+renderDataTable()
+renderImage()
+renderPlot()
+renderPrint()
+renderTable()
+renderText()
+renderUi()
+```
+Así, si queremos un histograma con los valores generados al elegir de la barra escribiremos
+
+```
+server<-function(input,output){
+    renderPlot({
+       output$hist <- renderPlot({
+                      hist(rnorm(input$num))
+                      })
+    })
+
+}
+
+```
+
+
+```{r SShist}
+library(shiny)
+
+ui <- fluidPage(
+  sliderInput(inputId = "num", 
+    label = "Choose a number", 
+    value = 25, min = 1, max = 100),
+  plotOutput("hist")
+)
+
+server <- function(input, output) {
+  output$hist <- renderPlot({
+    hist(rnorm(input$num+100))
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+
+# Valores y funciones reactivas
+
+#### Los valores y funciones reactivas tienen que colocarse dentro de una orden `render#`.
+
+#### Si quieres almacenar algo que vaya camibando tienes que usar `reactive()`. Por ejemplo `datos <- reacive({rnorm(input$num)})`.
+
+Un elemento reactivo (como datos) es algo como una función `datos()`. Los elementos reactivos se actualizan automáticamente y no necesitan código para ser recalculados.
+
+
+
+```{r ReactDatos}
+# 03-reactive
+
+library(shiny)
+
+ui <- fluidPage(
+  sliderInput(inputId = "num", 
+    label = "Choose a number", 
+    value = 25, min = 1, max = 100),
+  plotOutput("hist"),
+  verbatimTextOutput("stats")
+)
+
+server <- function(input, output) {
+  
+  datos <- reactive({
+    rnorm(input$num)
+  })
+  
+  output$hist <- renderPlot({
+    hist(datos())
+  })
+  output$stats <- renderPrint({
+    summary(datos())
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+
+Para evitar las actualizaciones se usa `isolate()` y aisla el valor hasta que se modifica. No se recalculará hasta que otro valor reactivo  se modifique,
+
+```{r IsolateR}
+library(shiny)
+
+ui <- fluidPage(
+  sliderInput(inputId = "num", 
+    label = "Choose a number", 
+    value = 25, min = 1, max = 100),
+  textInput(inputId = "title", 
+    label = "Write a title",
+    value = "Histogram of Random Normal Values"),
+  plotOutput("hist")
+)
+
+server <- function(input, output) {
+  output$hist <- renderPlot({
+    hist(rnorm(input$num), main = isolate(input$title))
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+
+Botones de acción
+```
+actionButton(inputId="vamos", label= "Presiona el botón")
+```
+
+Botón de observar evento, reacciona cuando cambia el evento (input$vamos)
+
+```
+observeEvent(input$vamos, {print(input$vamos)})
+```
+
+```{r ObservButt}
+# 05-actionButton
+
+library(shiny)
+
+ui <- fluidPage(
+  actionButton(inputId = "clicks", 
+    label = "Click me")
+)
+
+server <- function(input, output) {
+  observeEvent(input$clicks, {
+    print(as.numeric(input$clicks))
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+`observe({print(input$cliks)})` es similar.
+
+## Retrasar reacciones con eventReactive()
+
+Este botón sirve para configurar todos los valores de entrada (varios campos reactivos) y posteriormente evaluar todas las modificaciones conjuntamente (de otra forma, cada vez que cambias una, se modifica interactivamente).
+
+También, cada vez que le das al botón, ejecuta una reacción (si es simulación, cambia sus datos).
+
+```{r Eventreactive}
+# 07-eventReactive
+
+library(shiny)
+
+ui <- fluidPage(
+  sliderInput(inputId = "num", 
+    label = "Choose a number", 
+    value = 25, min = 1, max = 100),
+  actionButton(inputId = "go", 
+    label = "Update"),
+  plotOutput("hist")
+)
+
+server <- function(input, output) {
+  data <- eventReactive(input$go, {
+    rnorm(input$num) 
+  })
+  
+  output$hist <- renderPlot({
+    hist(data())
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+En este caso, cada vez que cambia `input$go` vuelve a generar los datos, es decir, cuando se pulsa el botón.
+
+## Trabajar con los valores introducidos
+
+No se puede trabajar en el código con los valores `input$num` ya que son reactivos. Para hacerlo
+
+```{r ReactiveValues}
+
+library(shiny)
+
+ui <- fluidPage(
+  actionButton(inputId = "norm", label = "Normal"),
+  actionButton(inputId = "unif", label = "Uniform"),
+  plotOutput("hist")
+)
+
+server <- function(input, output) {
+
+  rv <- reactiveValues(data = rnorm(100))
+
+  observeEvent(input$norm, { rv$data <- rnorm(100) })
+  observeEvent(input$unif, { rv$data <- runif(100) })
+
+  output$hist <- renderPlot({ 
+    hist(rv$data) 
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+
